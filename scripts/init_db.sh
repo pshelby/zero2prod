@@ -23,6 +23,8 @@ DB_PASSWORD="${POSTGRES_PASSWORD:=password}"
 DB_NAME="${POSTGRES_DB:=newsletter}"
 # Check if a custom port has been set, otherwise default to '5432'
 DB_PORT="${POSTGRES_PORT:=5432}"
+# Check if a custom host has been set, otherwise default to 'localhost'
+DB_HOST="${POSTGRES_HOST:=localhost}"
 
 # Allow to skip Docker if a dockerized Postgres database is already running
 if [[ -z "${SKIP_DOCKER}" ]]; then
@@ -33,19 +35,20 @@ if [[ -z "${SKIP_DOCKER}" ]]; then
 		-e POSTGRES_DB=${DB_NAME} \
 		-p "${DB_PORT}":5432 \
 		-d postgres \
+		--name "zero2prod-postgres-$(date '+%s')" \
 		postgres -N 1000
 	# ^ Increased maximum number of connections for testing purposes
 fi
 
 # Keep pinging Postgres until it's ready to accept commands
-until PGPASSWORD="${DB_PASSWORD}" psql -h "localhost" -U "${DB_USER}" -d "${DB_NAME}" -c '\q'; do
+until PGPASSWORD="${DB_PASSWORD}" psql -h "${DB_HOST}" -U "${DB_USER}" -d "postgres" -c '\q'; do
 	echo >&2 "Postgres is still unavailable - sleeping"
 	sleep 1
 done
 
 echo >&2 "Postgres is up and running on port ${DB_PORT} - running migrations now!"
 
-DATABASE_URL=postgres://${DB_USER}:${DB_PASSWORD}@localhost:${DB_PORT}/${DB_NAME}
+DATABASE_URL=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}
 export DATABASE_URL
 sqlx database create
 sqlx migrate run
